@@ -1,0 +1,40 @@
+cls
+Write-Host
+Write-Host "Getting a list of domain member servers & workstations from the COMPUTERS container."
+Write-Host "Domains Controllers are NOT included in any checks."
+$domain = (Get-ADDomain).ComputersContainer
+$result = Get-ADComputer -Filter *  -SearchBase $domain -properties *
+Write-Host "Domain member machines in AD:" $result.Count
+Write-Host
+Write-Host "Checking which machines are reponding...."
+$respondingMachines = @()
+$result | ForEach-Object {$pingable = (Test-NetConnection  $_.Name).PingSucceeded;if($pingable){$respondingMachines += $_.Name}}
+Write-Host "Responding Domain member machines in AD:" $respondingMachines.Count "`n"
+
+Write-Host "Perform a GPUPDATE on all machines:"
+#$respondingMachines | ForEach-Object {Write-Host "Performing GPUPDATE on" $_;Invoke-GPUpdate -Computer $_ -Boot -LogOff -RandomDelayInMinutes 0 -Force -Verbose}
+Write-Host "Done performing GPUPDATE.`n"
+
+# Checking for Velociraptor installation
+Write-Host "Checking Velociraptor is installed:"
+$binary = "c$\Program Files\Velociraptor\Velociraptor.exe"
+$respondingMachines | ForEach-Object {Write-Host -NoNewline "Checking Velociraptor on $_ : ";if(Test-Path "\\$_\$binary"){Write-Host -ForegroundColor Green "Installed"}else{Write-Host -ForegroundColor Red "Not present"}}
+Write-Host
+
+# Checking for Beats installation
+Write-Host "Checking Beats is installed:"
+$binary = "c$\Program Files\Elastic\Beats\7.9.3\winlogbeat\winlogbeat.exe"
+$respondingMachines | ForEach-Object {Write-Host -NoNewline "Checking Beats binary on $_ : ";if(Test-Path "\\$_\$binary"){Write-Host -ForegroundColor Green "Installed"}else{Write-Host -ForegroundColor Red "Not installed"}}
+Write-Host
+
+# Checking for Beats config file
+Write-Host "Checking Beats config file is present:"
+$binary = "c$\ProgramData\Elastic\Beats\winlogbeat\winlogbeat.yml"
+$respondingMachines | ForEach-Object {Write-Host -NoNewline "Checking Beats config on $_ : ";if(Test-Path "\\$_\$binary"){Write-Host -ForegroundColor Green "Present"}else{Write-Host -ForegroundColor Red "Not present"}}
+Write-Host
+
+# Checking Beats is running by looking for log file
+Write-Host "Checking for Beats log file:"
+$binary = "c$\ProgramData\Elastic\Beats\winlogbeat\logs\winlogbeat"
+$respondingMachines | ForEach-Object {Write-Host -NoNewline "Checking Beats running on $_ : ";if(Test-Path "\\$_\$binary"){Write-Host -ForegroundColor Green "Running"}else{Write-Host -ForegroundColor Red "Never run"}}
+
